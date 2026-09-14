@@ -1,44 +1,68 @@
 <script setup lang="ts">
-import { MoreHorizontal, Server, Star } from "lucide-vue-next"
+import { computed } from "vue"
+import { FileKey, KeyRound, Server, Star } from "lucide-vue-next"
 
 import { UiBadge, UiButton, UiCard } from "@/components/ui"
 import type { Host } from "@/features/hosts/types"
 import HostStatus from "@/features/hosts/components/HostStatus.vue"
 
-defineProps<{
+const props = defineProps<{
   host: Host
 }>()
 
 defineEmits<{
   open: [host: Host]
+  toggleFavorite: [hostId: string]
 }>()
+
+const authLabel = computed(() => {
+  if (props.host.authMethod === "privateKey") return "Key"
+  if (props.host.authMethod === "password") return "Password"
+
+  return "No auth"
+})
+
+const authIcon = computed(() => props.host.authMethod === "privateKey" ? FileKey : KeyRound)
 </script>
 
 <template>
   <UiCard
-      :icon="Server"
-      :title="host.name"
-      :subtitle="host.hostname"
-      class-name="group cursor-pointer rounded-lg shadow-none transition hover:border-[var(--app-accent)] hover:bg-[var(--app-panel-soft)]"
+      class-name="group cursor-pointer rounded-lg shadow-none transition hover:-translate-y-px hover:border-[var(--app-accent)] hover:bg-[var(--app-panel-soft)] hover:shadow-[var(--app-shadow)]"
       body-class-name="space-y-3"
       @click="$emit('open', host)"
   >
-    <template #actions>
-      <Star
-          v-if="host.favorite"
-          class="size-4 fill-[var(--app-warning)] text-[var(--app-warning)]"
-          aria-label="Favorite host"
-      />
+    <template #header>
+      <div class="flex min-w-0 items-start gap-3">
+        <div class="grid size-9 shrink-0 place-items-center rounded-md bg-[var(--app-panel-soft)] text-[var(--app-accent)]">
+          <Server
+              class="size-4"
+              aria-hidden="true"
+          />
+        </div>
 
-      <UiButton
+        <div class="min-w-0">
+          <h2 class="truncate text-sm font-semibold text-current">
+            {{ host.name }}
+          </h2>
+
+          <p class="mt-0.5 truncate text-xs text-[var(--app-muted)]">
+            {{ host.hostname }}
+          </p>
+        </div>
+      </div>
+
+      <div class="flex shrink-0 items-center gap-2">
+        <UiButton
           appearance="icon"
           variant="secondary"
           size="sm"
-          :icon="MoreHorizontal"
-          aria-label="Host actions"
-          class-name="opacity-70 hover:opacity-100"
-          @click.stop
-      />
+          :icon="Star"
+          :icon-class-name="host.favorite ? 'fill-[var(--app-warning)] text-[var(--app-warning)]' : undefined"
+          :aria-label="host.favorite ? 'Remove favorite' : 'Mark favorite'"
+          :class-name="host.favorite ? 'opacity-100' : 'opacity-70 hover:opacity-100'"
+          @click.stop="$emit('toggleFavorite', host.id)"
+        />
+      </div>
     </template>
 
     <div class="flex items-center justify-between gap-3">
@@ -65,9 +89,20 @@ defineEmits<{
     <div class="flex items-center justify-between gap-3">
       <HostStatus :status="host.status" />
 
-      <span class="text-xs font-medium text-[var(--app-accent)]">
-        Open
-      </span>
+      <div class="flex items-center gap-2">
+        <UiBadge
+            :icon="authIcon"
+            variant="secondary"
+            appearance="text"
+            size="sm"
+        >
+          {{ authLabel }}
+        </UiBadge>
+
+        <span class="text-xs font-medium text-[var(--app-accent)]">
+          Open
+        </span>
+      </div>
     </div>
   </UiCard>
 </template>

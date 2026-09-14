@@ -35,10 +35,15 @@ watch(isDark, applyTheme)
 
       <section class="flex min-w-0 flex-1 flex-col bg-[var(--app-bg)]">
         <RouterView v-slot="{ Component }">
-          <component
-              :is="Component"
-              :is-dark="isDark"
-          />
+          <Transition
+              name="page"
+              mode="out-in"
+          >
+            <component
+                :is="Component"
+                :is-dark="isDark"
+            />
+          </Transition>
         </RouterView>
 
         <StatusBar />

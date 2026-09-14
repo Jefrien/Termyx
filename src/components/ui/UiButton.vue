@@ -17,6 +17,7 @@ const props = withDefaults(
     href?: string
     target?: string
     icon?: Component
+    iconClassName?: string
     iconPosition?: "left" | "right"
     disabled?: boolean
     active?: boolean
@@ -94,7 +95,7 @@ const classes = computed(() => cn(
     <component
         :is="icon"
         v-if="icon && iconPosition === 'left'"
-        class="size-4"
+        :class="cn('size-4', iconClassName)"
         aria-hidden="true"
     />
 
@@ -108,7 +109,7 @@ const classes = computed(() => cn(
     <component
         :is="icon"
         v-if="icon && iconPosition === 'right'"
-        class="size-4"
+        :class="cn('size-4', iconClassName)"
         aria-hidden="true"
     />
   </component>

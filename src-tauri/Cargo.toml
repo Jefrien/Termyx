@@ -22,6 +22,10 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+aes-gcm = "0.10"
+argon2 = "0.5"
+base64 = "0.22"
+rand_core = { version = "0.6", features = ["getrandom"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

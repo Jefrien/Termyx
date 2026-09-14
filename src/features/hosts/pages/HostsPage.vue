@@ -1,15 +1,21 @@
 <script setup lang="ts">
+import { onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import { Plus } from "lucide-vue-next"
 
 import { UiButton } from "@/components/ui"
 import EmptyHostsState from "@/features/hosts/components/EmptyHostsState.vue"
+import HostFormModal from "@/features/hosts/components/HostFormModal.vue"
 import HostGrid from "@/features/hosts/components/HostGrid.vue"
+import VaultPanel from "@/features/hosts/components/VaultPanel.vue"
+import VaultUnlockModal from "@/features/hosts/components/VaultUnlockModal.vue"
 import { useHostsStore } from "@/features/hosts/stores/hosts"
-import type { Host } from "@/features/hosts/types"
+import type { Host, HostCreateInput } from "@/features/hosts/types"
 
 const router = useRouter()
 const hostsStore = useHostsStore()
+const isNewHostOpen = ref(false)
+const isVaultPromptOpen = ref(false)
 
 function openHost(host: Host) {
   void router.push({
@@ -19,6 +25,33 @@ function openHost(host: Host) {
     },
   })
 }
+
+async function createHost(input: HostCreateInput) {
+  await hostsStore.addHost(input)
+  isNewHostOpen.value = false
+}
+
+function startCreateHost() {
+  if (hostsStore.vaultUnlocked) {
+    isNewHostOpen.value = true
+    return
+  }
+
+  isVaultPromptOpen.value = true
+}
+
+async function unlockForCreate(passphrase: string) {
+  await hostsStore.unlockVault(passphrase)
+
+  if (!hostsStore.vaultUnlocked) return
+
+  isVaultPromptOpen.value = false
+  isNewHostOpen.value = true
+}
+
+onMounted(() => {
+  void hostsStore.checkVault()
+})
 </script>
 
 <template>
@@ -37,19 +70,51 @@ function openHost(host: Host) {
       <UiButton
           :icon="Plus"
           size="sm"
+          @click="startCreateHost"
       >
         New Host
       </UiButton>
     </header>
 
     <div class="min-h-0 flex-1 overflow-auto p-5">
+      <VaultPanel
+          class="mb-4"
+          :available="hostsStore.vaultAvailable"
+          :unlocked="hostsStore.vaultUnlocked"
+          :loading="hostsStore.isLoadingVault"
+          :error="hostsStore.vaultError"
+          @unlock="hostsStore.unlockVault"
+          @save="hostsStore.saveVault"
+          @lock="hostsStore.lockVault"
+          @reset="hostsStore.resetVault"
+      />
+
       <HostGrid
           v-if="hostsStore.hosts.length"
           :hosts="hostsStore.hosts"
           @open="openHost"
+          @toggle-favorite="hostsStore.toggleFavorite"
       />
 
-      <EmptyHostsState v-else />
+      <EmptyHostsState
+          v-else
+          @create="startCreateHost"
+      />
     </div>
+
+    <VaultUnlockModal
+        :open="isVaultPromptOpen"
+        :available="hostsStore.vaultAvailable"
+        :loading="hostsStore.isLoadingVault"
+        @close="isVaultPromptOpen = false"
+        @submit="unlockForCreate"
+    />
+
+    <HostFormModal
+        :open="isNewHostOpen"
+        :vault-unlocked="hostsStore.vaultUnlocked"
+        @close="isNewHostOpen = false"
+        @submit="createHost"
+    />
   </section>
 </template>

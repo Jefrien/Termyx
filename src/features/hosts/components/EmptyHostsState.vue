@@ -2,6 +2,10 @@
 import { Server } from "lucide-vue-next"
 
 import { UiButton, UiCard } from "@/components/ui"
+
+defineEmits<{
+  create: []
+}>()
 </script>
 
 <template>
@@ -11,7 +15,10 @@ import { UiButton, UiCard } from "@/components/ui"
       :icon="Server"
       class-name="max-w-md shadow-none"
   >
-    <UiButton size="sm">
+    <UiButton
+        size="sm"
+        @click="$emit('create')"
+    >
       New Host
     </UiButton>
   </UiCard>

@@ -1,21 +1,31 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue"
-import { FileKey, KeyRound, Server } from "lucide-vue-next"
+import { FileKey, KeyRound, Server, ShieldOff } from "lucide-vue-next"
 import { open as openDialog } from "@tauri-apps/plugin-dialog"
 import { readTextFile } from "@tauri-apps/plugin-fs"
 
 import { UiButton, UiModal } from "@/components/ui"
 import type {
+  CredentialAction,
+  Host,
   HostAuthMethod,
   HostCreateInput,
   HostDraft,
   PrivateKeyStorageMode,
 } from "@/features/hosts/types"
 
-const props = defineProps<{
-  open: boolean
-  vaultUnlocked: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    open: boolean
+    host?: Host | null
+    mode?: "create" | "edit"
+    vaultUnlocked: boolean
+  }>(),
+  {
+    host: null,
+    mode: "create",
+  },
+)
 
 const emit = defineEmits<{
   close: []
@@ -29,35 +39,57 @@ const form = reactive<HostDraft>({
   port: 22,
   favorite: false,
 })
-const authMethod = ref<Extract<HostAuthMethod, "password" | "privateKey">>("password")
+const authMethod = ref<HostAuthMethod>("password")
 const privateKeyStorageMode = ref<PrivateKeyStorageMode>("path")
 const password = ref("")
 const privateKeyPath = ref("")
 const privateKeyContent = ref("")
 const filePickerError = ref<string | null>(null)
 
-const canSubmit = computed(() =>
-  form.name.trim().length > 0
-  && form.hostname.trim().length > 0
-  && form.username.trim().length > 0
-  && Number.isInteger(form.port)
-  && form.port > 0
-  && form.port <= 65_535
-  && (
-    authMethod.value !== "privateKey"
-    || privateKeyStorageMode.value !== "imported"
-    || privateKeyContent.value.length > 0
-  ),
+const modalTitle = computed(() => props.mode === "edit" ? "Edit host" : "New host")
+const submitLabel = computed(() => props.mode === "edit" ? "Save changes" : "Create")
+const canPreserveCredential = computed(() =>
+  props.mode === "edit"
+  && props.host?.authMethod === authMethod.value
+  && authMethod.value !== "none",
 )
+const credentialAction = computed<CredentialAction>(() => {
+  if (authMethod.value === "none") return "clear"
+
+  const hasNewCredential = password.value.length > 0
+    || privateKeyPath.value.trim().length > 0
+    || privateKeyContent.value.length > 0
+
+  if (hasNewCredential) return "replace"
+
+  return canPreserveCredential.value ? "preserve" : "clear"
+})
+
+const canSubmit = computed(() => {
+  const hasBaseFields = form.name.trim().length > 0
+    && form.hostname.trim().length > 0
+    && form.username.trim().length > 0
+    && Number.isInteger(form.port)
+    && form.port > 0
+    && form.port <= 65_535
+
+  if (!hasBaseFields) return false
+  if (authMethod.value === "none") return true
+  if (credentialAction.value === "preserve") return true
+  if (authMethod.value === "password") return password.value.length > 0
+  if (privateKeyStorageMode.value === "path") return privateKeyPath.value.trim().length > 0
+
+  return privateKeyContent.value.length > 0
+})
 
 function resetForm() {
-  form.name = ""
-  form.hostname = ""
-  form.username = ""
-  form.port = 22
-  form.favorite = false
-  authMethod.value = "password"
-  privateKeyStorageMode.value = "path"
+  form.name = props.host?.name ?? ""
+  form.hostname = props.host?.hostname ?? ""
+  form.username = props.host?.username ?? ""
+  form.port = props.host?.port ?? 22
+  form.favorite = props.host?.favorite ?? false
+  authMethod.value = props.host?.authMethod ?? "password"
+  privateKeyStorageMode.value = props.host?.privateKeyStorageMode ?? "path"
   password.value = ""
   privateKeyPath.value = ""
   privateKeyContent.value = ""
@@ -95,10 +127,6 @@ async function selectPrivateKeyFile() {
   }
 }
 
-watch(privateKeyStorageMode, () => {
-  privateKeyContent.value = ""
-})
-
 function submitForm() {
   if (!canSubmit.value) return
 
@@ -119,19 +147,26 @@ function submitForm() {
     privateKeyContent: props.vaultUnlocked && authMethod.value === "privateKey" && privateKeyStorageMode.value === "imported" && privateKeyContent.value.length > 0
       ? privateKeyContent.value
       : null,
-    privateKeyStorageMode: props.vaultUnlocked && authMethod.value === "privateKey" && privateKeyPath.value.trim().length > 0
+    privateKeyStorageMode: props.vaultUnlocked && authMethod.value === "privateKey"
       ? privateKeyStorageMode.value
       : null,
+    authMethod: authMethod.value,
+    credentialAction: credentialAction.value,
   })
   resetForm()
 }
 
+watch(privateKeyStorageMode, () => {
+  privateKeyContent.value = ""
+})
+
 watch(
-  () => props.open,
-  (open) => {
-    if (!open) {
-      resetForm()
-    }
+  () => [props.open, props.host, props.mode] as const,
+  () => {
+    resetForm()
+  },
+  {
+    immediate: true,
   },
 )
 </script>
@@ -139,7 +174,7 @@ watch(
 <template>
   <UiModal
       :open="open"
-      title="New host"
+      :title="modalTitle"
       description="Create a local SSH profile and choose how Termyx should authenticate later."
       @close="emit('close')"
   >
@@ -210,7 +245,22 @@ watch(
           Authentication
         </span>
 
-        <div class="grid grid-cols-2 overflow-hidden rounded-md border border-[var(--app-border-strong)] bg-[var(--app-elevated)] p-1">
+        <div class="grid grid-cols-3 overflow-hidden rounded-md border border-[var(--app-border-strong)] bg-[var(--app-elevated)] p-1">
+          <button
+              type="button"
+              :class="[
+                'flex h-8 items-center justify-center gap-2 rounded px-2 text-sm font-medium text-[var(--app-muted-strong)]',
+                authMethod === 'none' ? 'bg-[var(--app-accent-soft)] text-[var(--app-text)]' : 'hover:bg-[var(--app-panel-soft)]',
+              ]"
+              @click="authMethod = 'none'"
+          >
+            <ShieldOff
+                class="size-4"
+                aria-hidden="true"
+            />
+            None
+          </button>
+
           <button
               type="button"
               :class="[
@@ -256,17 +306,17 @@ watch(
             type="password"
             autocomplete="new-password"
             :disabled="!vaultUnlocked"
-            placeholder="Optional"
+            :placeholder="mode === 'edit' ? 'Leave empty to keep current' : 'Required'"
             class="h-9 w-full rounded-md border border-[var(--app-border-strong)] bg-[var(--app-elevated)] px-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent)] disabled:opacity-60"
         >
       </label>
 
       <label
-          v-else
+          v-else-if="authMethod === 'privateKey'"
           class="block"
       >
         <span class="mb-1 block text-xs font-medium text-[var(--app-muted)]">
-          Private key path
+          Private key
         </span>
 
         <div class="mb-2 grid grid-cols-2 overflow-hidden rounded-md border border-[var(--app-border-strong)] bg-[var(--app-elevated)] p-1">
@@ -299,7 +349,7 @@ watch(
               type="text"
               autocomplete="off"
               :disabled="!vaultUnlocked"
-              placeholder="~/.ssh/id_ed25519"
+              :placeholder="mode === 'edit' ? 'Leave empty to keep current' : '~/.ssh/id_ed25519'"
               class="h-9 min-w-0 flex-1 rounded-md border border-[var(--app-border-strong)] bg-[var(--app-elevated)] px-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent)] disabled:opacity-60"
           >
 
@@ -317,7 +367,7 @@ watch(
         </div>
 
         <span class="mt-1 block text-xs text-[var(--app-muted)]">
-          {{ privateKeyStorageMode === "imported" ? "The selected key content will be copied into the encrypted vault." : "Termyx will store only the key path, like ssh -i." }}
+          {{ mode === "edit" && privateKeyPath.length === 0 ? "Leave empty to keep the current key." : privateKeyStorageMode === "imported" ? "The selected key content will be copied into the encrypted vault." : "Termyx will store only the key path, like ssh -i." }}
         </span>
 
         <span
@@ -355,7 +405,7 @@ watch(
             type="submit"
             :disabled="!canSubmit"
         >
-          Create
+          {{ submitLabel }}
         </UiButton>
       </div>
     </form>

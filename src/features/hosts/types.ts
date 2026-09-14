@@ -1,6 +1,7 @@
 export type HostStatus = "online" | "idle" | "offline"
 export type HostAuthMethod = "password" | "privateKey" | "none"
 export type PrivateKeyStorageMode = "path" | "imported"
+export type CredentialAction = "preserve" | "replace" | "clear"
 
 export interface Host {
   id: string
@@ -28,4 +29,10 @@ export interface HostCreateInput {
   privateKeyPath: string | null
   privateKeyContent: string | null
   privateKeyStorageMode: PrivateKeyStorageMode | null
+  authMethod: HostAuthMethod
+  credentialAction: CredentialAction
+}
+
+export interface HostUpdateInput extends HostCreateInput {
+  id: string
 }

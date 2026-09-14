@@ -1,6 +1,10 @@
 import { invoke } from "@tauri-apps/api/core"
 
-import type { Host, PrivateKeyStorageMode } from "@/features/hosts/types"
+import type {
+  CredentialAction,
+  Host,
+  PrivateKeyStorageMode,
+} from "@/features/hosts/types"
 
 export interface AppVault {
   version: number
@@ -39,6 +43,17 @@ export async function resetVaultFile() {
   await invoke("reset_app_vault")
 }
 
+export async function deleteHostFromVault(passphrase: string, hostId: string) {
+  if (!isTauriRuntime()) {
+    return
+  }
+
+  await invoke("delete_vault_host", {
+    passphrase,
+    hostId,
+  })
+}
+
 export async function saveHostsToVault(passphrase: string, hosts: Host[]) {
   if (!isTauriRuntime()) {
     return
@@ -60,6 +75,7 @@ export async function saveHostToVault(
   privateKeyPath: string | null,
   privateKeyContent: string | null,
   privateKeyStorageMode: PrivateKeyStorageMode | null,
+  credentialAction: CredentialAction,
 ) {
   if (!isTauriRuntime()) {
     return
@@ -72,5 +88,6 @@ export async function saveHostToVault(
     privateKeyPath,
     privateKeyContent,
     privateKeyStorageMode,
+    credentialAction,
   })
 }

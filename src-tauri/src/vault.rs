@@ -236,6 +236,7 @@ pub fn upsert_vault_host(
     private_key_path: Option<String>,
     private_key_content: Option<String>,
     private_key_storage_mode: Option<String>,
+    credential_action: String,
 ) -> Result<(), String> {
     let mut vault = read_vault_file(&app, &passphrase)?.unwrap_or(AppVault {
         version: VAULT_VERSION,
@@ -243,11 +244,24 @@ pub fn upsert_vault_host(
         credentials: Vec::new(),
     });
     let host_id = host.id.clone();
+    let host_auth_method = host.auth_method.clone();
 
     if let Some(existing_host) = vault.hosts.iter_mut().find(|item| item.id == host_id) {
         *existing_host = host;
     } else {
         vault.hosts.insert(0, host);
+    }
+
+    if credential_action == "preserve" {
+        return write_vault_file(&app, &passphrase, &vault);
+    }
+
+    if credential_action == "clear" || host_auth_method == "none" {
+        vault
+            .credentials
+            .retain(|credential| credential.host_id != host_id);
+
+        return write_vault_file(&app, &passphrase, &vault);
     }
 
     let has_private_key = private_key_path.as_ref().is_some_and(|value| !value.is_empty())
@@ -284,6 +298,26 @@ pub fn upsert_vault_host(
             });
         }
     }
+
+    write_vault_file(&app, &passphrase, &vault)
+}
+
+#[tauri::command]
+pub fn delete_vault_host(
+    app: AppHandle,
+    passphrase: String,
+    host_id: String,
+) -> Result<(), String> {
+    let mut vault = read_vault_file(&app, &passphrase)?.unwrap_or(AppVault {
+        version: VAULT_VERSION,
+        hosts: Vec::new(),
+        credentials: Vec::new(),
+    });
+
+    vault.hosts.retain(|host| host.id != host_id);
+    vault
+        .credentials
+        .retain(|credential| credential.host_id != host_id);
 
     write_vault_file(&app, &passphrase, &vault)
 }

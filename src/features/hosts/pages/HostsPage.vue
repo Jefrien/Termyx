@@ -16,6 +16,7 @@ const router = useRouter()
 const hostsStore = useHostsStore()
 const isNewHostOpen = ref(false)
 const isVaultPromptOpen = ref(false)
+const editingHost = ref<Host | null>(null)
 
 function openHost(host: Host) {
   void router.push({
@@ -29,6 +30,28 @@ function openHost(host: Host) {
 async function createHost(input: HostCreateInput) {
   await hostsStore.addHost(input)
   isNewHostOpen.value = false
+}
+
+async function saveEditedHost(input: HostCreateInput) {
+  if (!editingHost.value) return
+
+  await hostsStore.updateHost({
+    ...input,
+    id: editingHost.value.id,
+  })
+  editingHost.value = null
+}
+
+function editHost(host: Host) {
+  editingHost.value = host
+}
+
+async function deleteHost(host: Host) {
+  const shouldDelete = window.confirm(`Delete ${host.name}? This also removes its saved credentials from the vault.`)
+
+  if (!shouldDelete) return
+
+  await hostsStore.deleteHost(host.id)
 }
 
 function startCreateHost() {
@@ -92,6 +115,8 @@ onMounted(() => {
       <HostGrid
           v-if="hostsStore.hosts.length"
           :hosts="hostsStore.hosts"
+          @delete="deleteHost"
+          @edit="editHost"
           @open="openHost"
           @toggle-favorite="hostsStore.toggleFavorite"
       />
@@ -112,9 +137,19 @@ onMounted(() => {
 
     <HostFormModal
         :open="isNewHostOpen"
+        mode="create"
         :vault-unlocked="hostsStore.vaultUnlocked"
         @close="isNewHostOpen = false"
         @submit="createHost"
+    />
+
+    <HostFormModal
+        :open="editingHost !== null"
+        mode="edit"
+        :host="editingHost"
+        :vault-unlocked="hostsStore.vaultUnlocked"
+        @close="editingHost = null"
+        @submit="saveEditedHost"
     />
   </section>
 </template>

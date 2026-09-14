@@ -1,13 +1,20 @@
 import { defineStore } from "pinia"
 
 import {
+  deleteHostFromVault,
   loadHostsFromVault,
   resetVaultFile,
   saveHostToVault,
   saveHostsToVault,
   vaultExists,
 } from "@/features/hosts/services/hostsStorage"
-import type { Host, HostCreateInput, PrivateKeyStorageMode } from "@/features/hosts/types"
+import type {
+  CredentialAction,
+  Host,
+  HostCreateInput,
+  HostUpdateInput,
+  PrivateKeyStorageMode,
+} from "@/features/hosts/types"
 
 const seedHosts: Host[] = [
   {
@@ -137,8 +144,10 @@ export const useHostsStore = defineStore("hosts", {
         port: input.host.port,
         favorite: input.host.favorite,
         status: "idle",
-        authMethod: input.privateKeyPath ? "privateKey" : input.password ? "password" : "none",
-        privateKeyStorageMode: input.privateKeyPath ? input.privateKeyStorageMode ?? "path" : undefined,
+        authMethod: input.authMethod,
+        privateKeyStorageMode: input.authMethod === "privateKey"
+          ? input.privateKeyStorageMode ?? "path"
+          : undefined,
       }
 
       this.hosts.unshift(host)
@@ -150,6 +159,7 @@ export const useHostsStore = defineStore("hosts", {
           input.privateKeyPath,
           input.privateKeyContent,
           input.privateKeyStorageMode,
+          input.credentialAction,
         )
       }
     },
@@ -159,6 +169,7 @@ export const useHostsStore = defineStore("hosts", {
       privateKeyPath: string | null = null,
       privateKeyContent: string | null = null,
       privateKeyStorageMode: PrivateKeyStorageMode | null = null,
+      credentialAction: CredentialAction = "preserve",
     ) {
       this.vaultError = null
 
@@ -175,7 +186,55 @@ export const useHostsStore = defineStore("hosts", {
           privateKeyPath,
           privateKeyContent,
           privateKeyStorageMode,
+          credentialAction,
         )
+        this.vaultAvailable = true
+      } catch (error) {
+        this.vaultError = error instanceof Error ? error.message : String(error)
+      }
+    },
+    async updateHost(input: HostUpdateInput) {
+      const hostIndex = this.hosts.findIndex((host) => host.id === input.id)
+
+      if (hostIndex === -1) return
+
+      const existingHost = this.hosts[hostIndex]
+      const updatedHost: Host = {
+        ...existingHost,
+        name: input.host.name,
+        hostname: input.host.hostname,
+        username: input.host.username,
+        port: input.host.port,
+        favorite: input.host.favorite,
+        authMethod: input.authMethod,
+        privateKeyStorageMode: input.authMethod === "privateKey" && input.privateKeyPath
+          ? input.privateKeyStorageMode ?? "path"
+          : input.authMethod === "privateKey"
+            ? existingHost.privateKeyStorageMode
+            : undefined,
+      }
+
+      this.hosts.splice(hostIndex, 1, updatedHost)
+
+      if (this.vaultUnlocked) {
+        await this.saveHost(
+          updatedHost,
+          input.password,
+          input.privateKeyPath,
+          input.privateKeyContent,
+          input.privateKeyStorageMode,
+          input.credentialAction,
+        )
+      }
+    },
+    async deleteHost(hostId: string) {
+      this.vaultError = null
+      this.hosts = this.hosts.filter((host) => host.id !== hostId)
+
+      if (!this.vaultUnlocked || !this.vaultPassphrase) return
+
+      try {
+        await deleteHostFromVault(this.vaultPassphrase, hostId)
         this.vaultAvailable = true
       } catch (error) {
         this.vaultError = error instanceof Error ? error.message : String(error)

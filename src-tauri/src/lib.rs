@@ -7,6 +7,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            vault::delete_vault_host,
             vault::load_app_vault,
             vault::reset_app_vault,
             vault::save_app_vault,

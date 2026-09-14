@@ -7,6 +7,8 @@ defineProps<{
 }>()
 
 defineEmits<{
+  delete: [host: Host]
+  edit: [host: Host]
   open: [host: Host]
   toggleFavorite: [hostId: string]
 }>()
@@ -22,6 +24,8 @@ defineEmits<{
         v-for="host in hosts"
         :key="host.id"
         :host="host"
+        @delete="$emit('delete', $event)"
+        @edit="$emit('edit', $event)"
         @open="$emit('open', $event)"
         @toggle-favorite="$emit('toggleFavorite', $event)"
     />

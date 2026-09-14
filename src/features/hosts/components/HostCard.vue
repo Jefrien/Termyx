@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { FileKey, KeyRound, Server, Star } from "lucide-vue-next"
+import { Edit3, FileKey, KeyRound, Server, Star, Trash2 } from "lucide-vue-next"
 
 import { UiBadge, UiButton, UiCard } from "@/components/ui"
 import type { Host } from "@/features/hosts/types"
@@ -11,6 +11,8 @@ const props = defineProps<{
 }>()
 
 defineEmits<{
+  delete: [host: Host]
+  edit: [host: Host]
   open: [host: Host]
   toggleFavorite: [hostId: string]
 }>()
@@ -56,6 +58,16 @@ const authIcon = computed(() => props.host.authMethod === "privateKey" ? FileKey
 
       <div class="flex shrink-0 items-center gap-2">
         <UiButton
+            appearance="icon"
+            variant="secondary"
+            size="sm"
+            :icon="Edit3"
+            aria-label="Edit host"
+            class-name="opacity-70 hover:opacity-100"
+            @click.stop="$emit('edit', host)"
+        />
+
+        <UiButton
           appearance="icon"
           variant="secondary"
           size="sm"
@@ -64,6 +76,16 @@ const authIcon = computed(() => props.host.authMethod === "privateKey" ? FileKey
           :aria-label="host.favorite ? 'Remove favorite' : 'Mark favorite'"
           :class-name="host.favorite ? 'opacity-100' : 'opacity-70 hover:opacity-100'"
           @click.stop="$emit('toggleFavorite', host.id)"
+        />
+
+        <UiButton
+            appearance="icon"
+            variant="secondary"
+            size="sm"
+            :icon="Trash2"
+            aria-label="Delete host"
+            class-name="opacity-70 hover:text-red-500 hover:opacity-100"
+            @click.stop="$emit('delete', host)"
         />
       </div>
     </template>

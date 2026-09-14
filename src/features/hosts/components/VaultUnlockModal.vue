@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue"
+import { computed, nextTick, ref, watch } from "vue"
 import { Lock, Unlock } from "lucide-vue-next"
 
 import { UiButton, UiModal } from "@/components/ui"
@@ -15,6 +15,7 @@ const emit = defineEmits<{
   submit: [passphrase: string]
 }>()
 
+const passphraseInput = ref<HTMLInputElement | null>(null)
 const passphrase = ref("")
 const canSubmit = computed(() => passphrase.value.trim().length >= 8 && !props.loading)
 
@@ -27,10 +28,14 @@ function submitForm() {
 
 watch(
   () => props.open,
-  (open) => {
+  async (open) => {
     if (!open) {
       passphrase.value = ""
+      return
     }
+
+    await nextTick()
+    passphraseInput.value?.focus()
   },
 )
 </script>
@@ -47,6 +52,7 @@ watch(
         @submit.prevent="submitForm"
     >
       <input
+          ref="passphraseInput"
           v-model="passphrase"
           type="password"
           autocomplete="current-password"

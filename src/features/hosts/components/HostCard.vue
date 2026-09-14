@@ -16,7 +16,10 @@ defineEmits<{
 }>()
 
 const authLabel = computed(() => {
-  if (props.host.authMethod === "privateKey") return "Key"
+  if (props.host.authMethod === "privateKey") {
+    return props.host.privateKeyStorageMode === "imported" ? "Imported key" : "Key file"
+  }
+
   if (props.host.authMethod === "password") return "Password"
 
   return "No auth"

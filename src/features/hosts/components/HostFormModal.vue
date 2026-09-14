@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue"
 import { FileKey, KeyRound, Server } from "lucide-vue-next"
+import { open as openDialog } from "@tauri-apps/plugin-dialog"
+import { readTextFile } from "@tauri-apps/plugin-fs"
 
 import { UiButton, UiModal } from "@/components/ui"
-import type { HostAuthMethod, HostCreateInput, HostDraft } from "@/features/hosts/types"
+import type {
+  HostAuthMethod,
+  HostCreateInput,
+  HostDraft,
+  PrivateKeyStorageMode,
+} from "@/features/hosts/types"
 
 const props = defineProps<{
   open: boolean
@@ -23,8 +30,11 @@ const form = reactive<HostDraft>({
   favorite: false,
 })
 const authMethod = ref<Extract<HostAuthMethod, "password" | "privateKey">>("password")
+const privateKeyStorageMode = ref<PrivateKeyStorageMode>("path")
 const password = ref("")
 const privateKeyPath = ref("")
+const privateKeyContent = ref("")
+const filePickerError = ref<string | null>(null)
 
 const canSubmit = computed(() =>
   form.name.trim().length > 0
@@ -32,7 +42,12 @@ const canSubmit = computed(() =>
   && form.username.trim().length > 0
   && Number.isInteger(form.port)
   && form.port > 0
-  && form.port <= 65_535,
+  && form.port <= 65_535
+  && (
+    authMethod.value !== "privateKey"
+    || privateKeyStorageMode.value !== "imported"
+    || privateKeyContent.value.length > 0
+  ),
 )
 
 function resetForm() {
@@ -42,9 +57,47 @@ function resetForm() {
   form.port = 22
   form.favorite = false
   authMethod.value = "password"
+  privateKeyStorageMode.value = "path"
   password.value = ""
   privateKeyPath.value = ""
+  privateKeyContent.value = ""
+  filePickerError.value = null
 }
+
+function isTauriRuntime() {
+  return "__TAURI_INTERNALS__" in window
+}
+
+async function selectPrivateKeyFile() {
+  filePickerError.value = null
+
+  if (!isTauriRuntime()) {
+    filePickerError.value = "File picker is available in the desktop app."
+    return
+  }
+
+  try {
+    const selectedPath = await openDialog({
+      multiple: false,
+      directory: false,
+      title: "Select SSH private key",
+    })
+
+    if (!selectedPath || Array.isArray(selectedPath)) return
+
+    privateKeyPath.value = selectedPath
+
+    if (privateKeyStorageMode.value === "imported") {
+      privateKeyContent.value = await readTextFile(selectedPath)
+    }
+  } catch (error) {
+    filePickerError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
+watch(privateKeyStorageMode, () => {
+  privateKeyContent.value = ""
+})
 
 function submitForm() {
   if (!canSubmit.value) return
@@ -62,6 +115,12 @@ function submitForm() {
       : null,
     privateKeyPath: props.vaultUnlocked && authMethod.value === "privateKey" && privateKeyPath.value.trim().length > 0
       ? privateKeyPath.value.trim()
+      : null,
+    privateKeyContent: props.vaultUnlocked && authMethod.value === "privateKey" && privateKeyStorageMode.value === "imported" && privateKeyContent.value.length > 0
+      ? privateKeyContent.value
+      : null,
+    privateKeyStorageMode: props.vaultUnlocked && authMethod.value === "privateKey" && privateKeyPath.value.trim().length > 0
+      ? privateKeyStorageMode.value
       : null,
   })
   resetForm()
@@ -210,14 +269,63 @@ watch(
           Private key path
         </span>
 
-        <input
-            v-model="privateKeyPath"
-            type="text"
-            autocomplete="off"
-            :disabled="!vaultUnlocked"
-            placeholder="~/.ssh/id_ed25519"
-            class="h-9 w-full rounded-md border border-[var(--app-border-strong)] bg-[var(--app-elevated)] px-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent)] disabled:opacity-60"
+        <div class="mb-2 grid grid-cols-2 overflow-hidden rounded-md border border-[var(--app-border-strong)] bg-[var(--app-elevated)] p-1">
+          <button
+              type="button"
+              :class="[
+                'flex h-8 items-center justify-center px-2 text-sm font-medium text-[var(--app-muted-strong)]',
+                privateKeyStorageMode === 'path' ? 'rounded bg-[var(--app-accent-soft)] text-[var(--app-text)]' : 'rounded hover:bg-[var(--app-panel-soft)]',
+              ]"
+              @click="privateKeyStorageMode = 'path'"
+          >
+            Use path
+          </button>
+
+          <button
+              type="button"
+              :class="[
+                'flex h-8 items-center justify-center px-2 text-sm font-medium text-[var(--app-muted-strong)]',
+                privateKeyStorageMode === 'imported' ? 'rounded bg-[var(--app-accent-soft)] text-[var(--app-text)]' : 'rounded hover:bg-[var(--app-panel-soft)]',
+              ]"
+              @click="privateKeyStorageMode = 'imported'"
+          >
+            Import
+          </button>
+        </div>
+
+        <div class="flex gap-2">
+          <input
+              v-model="privateKeyPath"
+              type="text"
+              autocomplete="off"
+              :disabled="!vaultUnlocked"
+              placeholder="~/.ssh/id_ed25519"
+              class="h-9 min-w-0 flex-1 rounded-md border border-[var(--app-border-strong)] bg-[var(--app-elevated)] px-3 text-sm text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus:border-[var(--app-accent)] disabled:opacity-60"
+          >
+
+          <UiButton
+              :icon="FileKey"
+              variant="secondary"
+              appearance="outline"
+              size="sm"
+              type="button"
+              :disabled="!vaultUnlocked"
+              @click="selectPrivateKeyFile"
+          >
+            Browse
+          </UiButton>
+        </div>
+
+        <span class="mt-1 block text-xs text-[var(--app-muted)]">
+          {{ privateKeyStorageMode === "imported" ? "The selected key content will be copied into the encrypted vault." : "Termyx will store only the key path, like ssh -i." }}
+        </span>
+
+        <span
+            v-if="filePickerError"
+            class="mt-1 block text-xs text-red-500"
         >
+          {{ filePickerError }}
+        </span>
       </label>
 
       <label class="flex items-center gap-2 rounded-md border border-[var(--app-border)] bg-[var(--app-elevated)] px-3 py-2 text-sm text-[var(--app-muted-strong)]">

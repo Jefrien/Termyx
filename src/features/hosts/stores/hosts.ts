@@ -7,7 +7,7 @@ import {
   saveHostsToVault,
   vaultExists,
 } from "@/features/hosts/services/hostsStorage"
-import type { Host, HostCreateInput } from "@/features/hosts/types"
+import type { Host, HostCreateInput, PrivateKeyStorageMode } from "@/features/hosts/types"
 
 const seedHosts: Host[] = [
   {
@@ -19,6 +19,7 @@ const seedHosts: Host[] = [
     favorite: true,
     status: "online",
     authMethod: "privateKey",
+    privateKeyStorageMode: "path",
   },
   {
     id: "database",
@@ -137,18 +138,27 @@ export const useHostsStore = defineStore("hosts", {
         favorite: input.host.favorite,
         status: "idle",
         authMethod: input.privateKeyPath ? "privateKey" : input.password ? "password" : "none",
+        privateKeyStorageMode: input.privateKeyPath ? input.privateKeyStorageMode ?? "path" : undefined,
       }
 
       this.hosts.unshift(host)
 
       if (this.vaultUnlocked) {
-        await this.saveHost(host, input.password, input.privateKeyPath)
+        await this.saveHost(
+          host,
+          input.password,
+          input.privateKeyPath,
+          input.privateKeyContent,
+          input.privateKeyStorageMode,
+        )
       }
     },
     async saveHost(
       host: Host,
       password: string | null = null,
       privateKeyPath: string | null = null,
+      privateKeyContent: string | null = null,
+      privateKeyStorageMode: PrivateKeyStorageMode | null = null,
     ) {
       this.vaultError = null
 
@@ -158,7 +168,14 @@ export const useHostsStore = defineStore("hosts", {
       }
 
       try {
-        await saveHostToVault(this.vaultPassphrase, host, password, privateKeyPath)
+        await saveHostToVault(
+          this.vaultPassphrase,
+          host,
+          password,
+          privateKeyPath,
+          privateKeyContent,
+          privateKeyStorageMode,
+        )
         this.vaultAvailable = true
       } catch (error) {
         this.vaultError = error instanceof Error ? error.message : String(error)

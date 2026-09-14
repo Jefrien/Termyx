@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core"
 
-import type { Host } from "@/features/hosts/types"
+import type { Host, PrivateKeyStorageMode } from "@/features/hosts/types"
 
 export interface AppVault {
   version: number
@@ -58,6 +58,8 @@ export async function saveHostToVault(
   host: Host,
   password: string | null,
   privateKeyPath: string | null,
+  privateKeyContent: string | null,
+  privateKeyStorageMode: PrivateKeyStorageMode | null,
 ) {
   if (!isTauriRuntime()) {
     return
@@ -68,5 +70,7 @@ export async function saveHostToVault(
     host,
     password,
     privateKeyPath,
+    privateKeyContent,
+    privateKeyStorageMode,
   })
 }

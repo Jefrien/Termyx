@@ -31,6 +31,9 @@ pub struct HostRecord {
     #[serde(rename = "authMethod")]
     #[serde(default = "default_auth_method")]
     pub auth_method: String,
+    #[serde(rename = "privateKeyStorageMode")]
+    #[serde(default)]
+    pub private_key_storage_mode: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -51,6 +54,10 @@ pub struct CredentialRecord {
     pub password: Option<String>,
     #[serde(default)]
     pub private_key_path: Option<String>,
+    #[serde(default)]
+    pub private_key_content: Option<String>,
+    #[serde(default)]
+    pub private_key_storage_mode: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -227,6 +234,8 @@ pub fn upsert_vault_host(
     host: HostRecord,
     password: Option<String>,
     private_key_path: Option<String>,
+    private_key_content: Option<String>,
+    private_key_storage_mode: Option<String>,
 ) -> Result<(), String> {
     let mut vault = read_vault_file(&app, &passphrase)?.unwrap_or(AppVault {
         version: VAULT_VERSION,
@@ -241,7 +250,9 @@ pub fn upsert_vault_host(
         vault.hosts.insert(0, host);
     }
 
-    let auth_type = if private_key_path.as_ref().is_some_and(|value| !value.is_empty()) {
+    let has_private_key = private_key_path.as_ref().is_some_and(|value| !value.is_empty())
+        || private_key_content.as_ref().is_some_and(|value| !value.is_empty());
+    let auth_type = if has_private_key {
         Some(String::from("privateKey"))
     } else if password.as_ref().is_some_and(|value| !value.is_empty()) {
         Some(String::from("password"))
@@ -259,12 +270,17 @@ pub fn upsert_vault_host(
             existing_credential.password = password.filter(|value| !value.is_empty());
             existing_credential.private_key_path =
                 private_key_path.filter(|value| !value.is_empty());
+            existing_credential.private_key_content =
+                private_key_content.filter(|value| !value.is_empty());
+            existing_credential.private_key_storage_mode = private_key_storage_mode;
         } else {
             vault.credentials.push(CredentialRecord {
                 host_id,
                 auth_type,
                 password: password.filter(|value| !value.is_empty()),
                 private_key_path: private_key_path.filter(|value| !value.is_empty()),
+                private_key_content: private_key_content.filter(|value| !value.is_empty()),
+                private_key_storage_mode,
             });
         }
     }

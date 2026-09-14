@@ -3,7 +3,7 @@ import { onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import { Plus } from "lucide-vue-next"
 
-import { UiButton } from "@/components/ui"
+import { UiButton, UiConfirmDialog } from "@/components/ui"
 import EmptyHostsState from "@/features/hosts/components/EmptyHostsState.vue"
 import HostFormModal from "@/features/hosts/components/HostFormModal.vue"
 import HostGrid from "@/features/hosts/components/HostGrid.vue"
@@ -17,6 +17,7 @@ const hostsStore = useHostsStore()
 const isNewHostOpen = ref(false)
 const isVaultPromptOpen = ref(false)
 const editingHost = ref<Host | null>(null)
+const deletingHost = ref<Host | null>(null)
 
 function openHost(host: Host) {
   void router.push({
@@ -42,16 +43,15 @@ async function saveEditedHost(input: HostCreateInput) {
   editingHost.value = null
 }
 
-function editHost(host: Host) {
-  editingHost.value = host
+async function confirmDeleteHost() {
+  if (!deletingHost.value) return
+
+  await hostsStore.deleteHost(deletingHost.value.id)
+  deletingHost.value = null
 }
 
-async function deleteHost(host: Host) {
-  const shouldDelete = window.confirm(`Delete ${host.name}? This also removes its saved credentials from the vault.`)
-
-  if (!shouldDelete) return
-
-  await hostsStore.deleteHost(host.id)
+function editHost(host: Host) {
+  editingHost.value = host
 }
 
 function startCreateHost() {
@@ -115,7 +115,7 @@ onMounted(() => {
       <HostGrid
           v-if="hostsStore.hosts.length"
           :hosts="hostsStore.hosts"
-          @delete="deleteHost"
+          @delete="deletingHost = $event"
           @edit="editHost"
           @open="openHost"
           @toggle-favorite="hostsStore.toggleFavorite"
@@ -150,6 +150,16 @@ onMounted(() => {
         :vault-unlocked="hostsStore.vaultUnlocked"
         @close="editingHost = null"
         @submit="saveEditedHost"
+    />
+
+    <UiConfirmDialog
+        :open="deletingHost !== null"
+        title="Delete host"
+        :description="deletingHost ? `Delete ${deletingHost.name}? Its saved credentials will also be removed from the encrypted vault.` : ''"
+        confirm-label="Delete"
+        :loading="hostsStore.isLoadingVault"
+        @cancel="deletingHost = null"
+        @confirm="confirmDeleteHost"
     />
   </section>
 </template>

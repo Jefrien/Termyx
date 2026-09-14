@@ -5,6 +5,7 @@ import { Terminal, type ITheme } from "@xterm/xterm"
 interface UseTerminalOptions {
   container: Ref<HTMLDivElement | null>
   isDark: Ref<boolean>
+  sessionState: Ref<"disconnected" | "connecting" | "connected">
   hostLabel: Ref<string>
   prompt: Ref<string>
 }
@@ -75,6 +76,7 @@ export function useTerminal(options: UseTerminalOptions) {
 
     terminal.writeln("\x1b[1;35mTermyx\x1b[0m")
     terminal.writeln(`Mock session: ${options.hostLabel.value}`)
+    terminal.writeln("Press Connect to simulate opening the session.")
     terminal.write(options.prompt.value)
 
     dataListener = terminal.onData((data) => {
@@ -100,6 +102,25 @@ export function useTerminal(options: UseTerminalOptions) {
     if (!terminal) return
 
     terminal.options.theme = terminalTheme(isDark)
+  })
+
+  watch(options.sessionState, (sessionState) => {
+    if (!terminal) return
+
+    terminal.write("\r\n")
+
+    if (sessionState === "connecting") {
+      terminal.writeln("Connecting to mock SSH session...")
+      return
+    }
+
+    if (sessionState === "connected") {
+      terminal.writeln("Mock SSH session connected.")
+      terminal.write(options.prompt.value)
+      return
+    }
+
+    terminal.writeln("Mock SSH session disconnected.")
   })
 
   onBeforeUnmount(() => {

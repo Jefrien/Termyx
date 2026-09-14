@@ -1,4 +1,5 @@
 export { default as UiBadge } from "./UiBadge.vue"
 export { default as UiButton } from "./UiButton.vue"
 export { default as UiCard } from "./UiCard.vue"
+export { default as UiConfirmDialog } from "./UiConfirmDialog.vue"
 export { default as UiModal } from "./UiModal.vue"

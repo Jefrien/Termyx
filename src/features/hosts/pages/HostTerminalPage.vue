@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from "vue"
+import { computed, onBeforeUnmount, ref } from "vue"
 import { RouterLink } from "vue-router"
-import { ArrowLeft } from "lucide-vue-next"
+import { ArrowLeft, Play, Square } from "lucide-vue-next"
 
 import { UiBadge, UiButton } from "@/components/ui"
 import HostStatus from "@/features/hosts/components/HostStatus.vue"
@@ -15,6 +15,43 @@ const props = defineProps<{
 
 const hostsStore = useHostsStore()
 const host = computed(() => hostsStore.getHostById(props.hostId))
+const sessionState = ref<"disconnected" | "connecting" | "connected">("disconnected")
+let connectTimer: number | null = null
+
+const sessionBadgeVariant = computed(() =>
+  sessionState.value === "connected" ? "primary" : "secondary",
+)
+const sessionLabel = computed(() => {
+  if (sessionState.value === "connected") return "Connected"
+  if (sessionState.value === "connecting") return "Connecting"
+
+  return "Disconnected"
+})
+
+function connectSession() {
+  if (sessionState.value !== "disconnected") return
+
+  sessionState.value = "connecting"
+  connectTimer = window.setTimeout(() => {
+    sessionState.value = "connected"
+    connectTimer = null
+  }, 450)
+}
+
+function disconnectSession() {
+  if (connectTimer) {
+    window.clearTimeout(connectTimer)
+    connectTimer = null
+  }
+
+  sessionState.value = "disconnected"
+}
+
+onBeforeUnmount(() => {
+  if (connectTimer) {
+    window.clearTimeout(connectTimer)
+  }
+})
 </script>
 
 <template>
@@ -59,7 +96,29 @@ const host = computed(() => hostsStore.getHostById(props.hostId))
           </div>
         </div>
 
-        <HostStatus :status="host.status" />
+        <div class="flex shrink-0 items-center gap-2">
+          <HostStatus :status="host.status" />
+
+          <UiButton
+              v-if="sessionState === 'disconnected'"
+              :icon="Play"
+              size="sm"
+              @click="connectSession"
+          >
+            Connect
+          </UiButton>
+
+          <UiButton
+              v-else
+              :icon="Square"
+              variant="secondary"
+              appearance="outline"
+              size="sm"
+              @click="disconnectSession"
+          >
+            Disconnect
+          </UiButton>
+        </div>
       </header>
 
       <div class="min-h-0 flex-1 overflow-hidden p-3">
@@ -70,16 +129,17 @@ const host = computed(() => hostsStore.getHostById(props.hostId))
             </div>
 
             <UiBadge
-                variant="primary"
+                :variant="sessionBadgeVariant"
                 size="sm"
             >
-              Mock
+              {{ sessionLabel }}
             </UiBadge>
           </div>
 
           <div class="min-h-0 flex-1">
             <TerminalView
                 :is-dark="isDark"
+                :session-state="sessionState"
                 :host-name="host.name"
                 :username="host.username"
                 :hostname="host.hostname"
@@ -92,6 +152,8 @@ const host = computed(() => hostsStore.getHostById(props.hostId))
             </span>
 
             <span>Local/mock connection state</span>
+
+            <span>{{ sessionLabel }}</span>
           </footer>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { useTerminal } from "@/features/terminal/composables/useTerminal"
 
 const props = defineProps<{
   isDark: boolean
+  sessionState: "disconnected" | "connecting" | "connected"
   hostName: string
   username: string
   hostname: string
@@ -16,6 +17,7 @@ const prompt = computed(() => `${props.username}@${props.hostname}:~$ `)
 useTerminal({
   container,
   isDark: toRef(props, "isDark"),
+  sessionState: toRef(props, "sessionState"),
   hostLabel: toRef(props, "hostName"),
   prompt,
 })

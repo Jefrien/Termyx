@@ -2,10 +2,11 @@
 import { computed, ref, toRef } from "vue"
 
 import { useTerminal } from "@/features/terminal/composables/useTerminal"
+import type { TerminalSessionState } from "@/features/terminal/composables/useSshSession"
 
 const props = defineProps<{
   isDark: boolean
-  sessionState: "disconnected" | "connecting" | "connected"
+  sessionState: TerminalSessionState
   hostName: string
   username: string
   hostname: string

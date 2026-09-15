@@ -18,7 +18,7 @@ const VAULT_VERSION: u16 = 1;
 const KDF_NAME: &str = "argon2id";
 const CIPHER_NAME: &str = "aes-256-gcm";
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostRecord {
     pub id: String,
@@ -36,7 +36,7 @@ pub struct HostRecord {
     pub private_key_storage_mode: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppVault {
     pub version: u16,
@@ -45,7 +45,7 @@ pub struct AppVault {
     pub credentials: Vec<CredentialRecord>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CredentialRecord {
     pub host_id: String,
@@ -175,6 +175,28 @@ fn read_vault_file(app: &AppHandle, passphrase: &str) -> Result<Option<AppVault>
         .map_err(|error| format!("Failed to parse vault file: {error}"))?;
 
     decrypt_vault(passphrase, &encrypted).map(Some)
+}
+
+pub fn get_vault_host_with_credential(
+    app: &AppHandle,
+    passphrase: &str,
+    host_id: &str,
+) -> Result<(HostRecord, Option<CredentialRecord>), String> {
+    let vault = read_vault_file(app, passphrase)?
+        .ok_or_else(|| String::from("Vault has not been created"))?;
+    let host = vault
+        .hosts
+        .iter()
+        .find(|host| host.id == host_id)
+        .cloned()
+        .ok_or_else(|| String::from("Host not found"))?;
+    let credential = vault
+        .credentials
+        .iter()
+        .find(|credential| credential.host_id == host_id)
+        .cloned();
+
+    Ok((host, credential))
 }
 
 fn write_vault_file(app: &AppHandle, passphrase: &str, vault: &AppVault) -> Result<(), String> {

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue"
+import { computed, toRef } from "vue"
 import { RouterLink } from "vue-router"
 import { ArrowLeft, Play, Square } from "lucide-vue-next"
 
 import { UiBadge, UiButton } from "@/components/ui"
 import HostStatus from "@/features/hosts/components/HostStatus.vue"
 import { useHostsStore } from "@/features/hosts/stores/hosts"
+import { useSshSession } from "@/features/terminal/composables/useSshSession"
 import TerminalView from "@/features/terminal/components/TerminalView.vue"
 
 const props = defineProps<{
@@ -15,8 +16,17 @@ const props = defineProps<{
 
 const hostsStore = useHostsStore()
 const host = computed(() => hostsStore.getHostById(props.hostId))
-const sessionState = ref<"disconnected" | "connecting" | "connected">("disconnected")
-let connectTimer: number | null = null
+const {
+  attempt,
+  canConnect,
+  connect,
+  disconnect,
+  lastResult,
+  sessionState,
+} = useSshSession({
+  hostId: toRef(props, "hostId"),
+  passphrase: computed(() => hostsStore.vaultPassphrase),
+})
 
 const sessionBadgeVariant = computed(() =>
   sessionState.value === "connected" ? "primary" : "secondary",
@@ -24,33 +34,10 @@ const sessionBadgeVariant = computed(() =>
 const sessionLabel = computed(() => {
   if (sessionState.value === "connected") return "Connected"
   if (sessionState.value === "connecting") return "Connecting"
+  if (sessionState.value === "reconnecting") return "Reconnecting"
+  if (sessionState.value === "failed") return "Failed"
 
   return "Disconnected"
-})
-
-function connectSession() {
-  if (sessionState.value !== "disconnected") return
-
-  sessionState.value = "connecting"
-  connectTimer = window.setTimeout(() => {
-    sessionState.value = "connected"
-    connectTimer = null
-  }, 450)
-}
-
-function disconnectSession() {
-  if (connectTimer) {
-    window.clearTimeout(connectTimer)
-    connectTimer = null
-  }
-
-  sessionState.value = "disconnected"
-}
-
-onBeforeUnmount(() => {
-  if (connectTimer) {
-    window.clearTimeout(connectTimer)
-  }
 })
 </script>
 
@@ -103,7 +90,8 @@ onBeforeUnmount(() => {
               v-if="sessionState === 'disconnected'"
               :icon="Play"
               size="sm"
-              @click="connectSession"
+              :disabled="!canConnect"
+              @click="connect"
           >
             Connect
           </UiButton>
@@ -114,7 +102,7 @@ onBeforeUnmount(() => {
               variant="secondary"
               appearance="outline"
               size="sm"
-              @click="disconnectSession"
+              @click="disconnect"
           >
             Disconnect
           </UiButton>
@@ -154,6 +142,17 @@ onBeforeUnmount(() => {
             <span>Local/mock connection state</span>
 
             <span>{{ sessionLabel }}</span>
+
+            <span v-if="attempt > 0">
+              Attempt {{ attempt }}
+            </span>
+
+            <span
+                v-if="lastResult"
+                class="truncate"
+            >
+              {{ lastResult.message }}
+            </span>
           </footer>
         </div>
       </div>

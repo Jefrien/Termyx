@@ -2,10 +2,12 @@ import { nextTick, onBeforeUnmount, onMounted, type Ref, watch } from "vue"
 import { FitAddon } from "@xterm/addon-fit"
 import { Terminal, type ITheme } from "@xterm/xterm"
 
+import type { TerminalSessionState } from "@/features/terminal/composables/useSshSession"
+
 interface UseTerminalOptions {
   container: Ref<HTMLDivElement | null>
   isDark: Ref<boolean>
-  sessionState: Ref<"disconnected" | "connecting" | "connected">
+  sessionState: Ref<TerminalSessionState>
   hostLabel: Ref<string>
   prompt: Ref<string>
 }
@@ -75,8 +77,8 @@ export function useTerminal(options: UseTerminalOptions) {
     fit()
 
     terminal.writeln("\x1b[1;35mTermyx\x1b[0m")
-    terminal.writeln(`Mock session: ${options.hostLabel.value}`)
-    terminal.writeln("Press Connect to simulate opening the session.")
+    terminal.writeln(`SSH session: ${options.hostLabel.value}`)
+    terminal.writeln("Press Connect to test authentication.")
     terminal.write(options.prompt.value)
 
     dataListener = terminal.onData((data) => {
@@ -110,17 +112,27 @@ export function useTerminal(options: UseTerminalOptions) {
     terminal.write("\r\n")
 
     if (sessionState === "connecting") {
-      terminal.writeln("Connecting to mock SSH session...")
+      terminal.writeln("Connecting to SSH session...")
+      return
+    }
+
+    if (sessionState === "reconnecting") {
+      terminal.writeln("Connection failed or timed out. Reconnecting...")
       return
     }
 
     if (sessionState === "connected") {
-      terminal.writeln("Mock SSH session connected.")
+      terminal.writeln("SSH authentication succeeded.")
       terminal.write(options.prompt.value)
       return
     }
 
-    terminal.writeln("Mock SSH session disconnected.")
+    if (sessionState === "failed") {
+      terminal.writeln("SSH connection failed.")
+      return
+    }
+
+    terminal.writeln("SSH session disconnected.")
   })
 
   onBeforeUnmount(() => {

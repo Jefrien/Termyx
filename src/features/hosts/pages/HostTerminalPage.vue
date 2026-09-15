@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, toRef } from "vue"
+import { computed, onMounted, ref, toRef } from "vue"
 import { RouterLink } from "vue-router"
 import { ArrowLeft, Play, Square } from "lucide-vue-next"
 
 import { UiBadge, UiButton } from "@/components/ui"
 import HostStatus from "@/features/hosts/components/HostStatus.vue"
+import VaultUnlockModal from "@/features/hosts/components/VaultUnlockModal.vue"
 import { useHostsStore } from "@/features/hosts/stores/hosts"
 import { useSshSession } from "@/features/terminal/composables/useSshSession"
 import TerminalView from "@/features/terminal/components/TerminalView.vue"
@@ -16,6 +17,7 @@ const props = defineProps<{
 
 const hostsStore = useHostsStore()
 const host = computed(() => hostsStore.getHostById(props.hostId))
+const isVaultPromptOpen = ref(false)
 const {
   attempt,
   canConnect,
@@ -38,6 +40,28 @@ const sessionLabel = computed(() => {
   if (sessionState.value === "failed") return "Failed"
 
   return "Disconnected"
+})
+
+function startConnection() {
+  if (canConnect.value) {
+    void connect()
+    return
+  }
+
+  isVaultPromptOpen.value = true
+}
+
+async function unlockAndConnect(passphrase: string) {
+  await hostsStore.unlockVault(passphrase)
+
+  if (!hostsStore.vaultUnlocked) return
+
+  isVaultPromptOpen.value = false
+  void connect()
+}
+
+onMounted(() => {
+  void hostsStore.checkVault()
 })
 </script>
 
@@ -90,8 +114,7 @@ const sessionLabel = computed(() => {
               v-if="sessionState === 'disconnected'"
               :icon="Play"
               size="sm"
-              :disabled="!canConnect"
-              @click="connect"
+              @click="startConnection"
           >
             Connect
           </UiButton>
@@ -156,6 +179,14 @@ const sessionLabel = computed(() => {
           </footer>
         </div>
       </div>
+
+      <VaultUnlockModal
+          :open="isVaultPromptOpen"
+          :available="hostsStore.vaultAvailable"
+          :loading="hostsStore.isLoadingVault"
+          @close="isVaultPromptOpen = false"
+          @submit="unlockAndConnect"
+      />
     </template>
 
     <div
